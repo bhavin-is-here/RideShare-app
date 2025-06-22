@@ -58,19 +58,23 @@
   <div id="map"></div>
 
   <script>
+    // Initialize HERE Maps platform
     const apikey = "hI1z0DnwlCjtX0WYQHn5up9JxpvXEo0vVmzuyeyuZVQ";
     const platform = new H.service.Platform({ apikey });
     const defaultLayers = platform.createDefaultLayers();
 
+    // Create the map
     const map = new H.Map(document.getElementById('map'), defaultLayers.vector.normal.map, {
       zoom: 14,
       center: { lat: 52.52, lng: 13.405 },
       pixelRatio: window.devicePixelRatio || 1
     });
 
+    // Add default UI and map interactions
     const ui = H.ui.UI.createDefault(map, defaultLayers);
     const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
 
+    // Initialize variables
     let userCoords = null;
     let dropoffCoords = null;
     let routeLine = null;
@@ -80,7 +84,7 @@
     let hasCentered = false;
     let dropoffMarker = null;
 
-    // Geolocation tracking
+    // Get user's location continuously and update marker
     navigator.geolocation.watchPosition(pos => {
       userCoords = {
         lat: pos.coords.latitude,
@@ -107,14 +111,17 @@
       timeout: 10000
     });
 
+    // Setup HERE Places Autosuggest service
     const searchService = platform.getSearchService();
     const dropoffInput = document.getElementById('dropoff');
     const suggestions = document.getElementById('dropoff-suggestions');
 
+    // Handle input in the dropoff search bar
     dropoffInput.addEventListener('input', () => {
       const query = dropoffInput.value;
       if (!query) return suggestions.innerHTML = '';
 
+      // Fetch autosuggest results from HERE Places API
       searchService.autosuggest({
         q: query,
         at: map.getCenter().lat + ',' + map.getCenter().lng
@@ -131,7 +138,7 @@
             dropoffCoords = item.position;
             suggestions.innerHTML = '';
 
-            // Add destination marker
+            // Add marker for selected destination
             if (dropoffMarker) {
               map.removeObject(dropoffMarker);
             }
@@ -139,6 +146,7 @@
             dropoffMarker.setData("Destination");
             map.addObject(dropoffMarker);
 
+            // Trigger route calculation
             calculateRoute();
           };
           suggestions.appendChild(div);
@@ -146,6 +154,7 @@
       });
     });
 
+    // Calculate route between user location and dropoff
     function calculateRoute() {
       if (!userCoords || !dropoffCoords) return;
 
@@ -160,15 +169,19 @@
         const route = res.routes[0];
         const lineString = H.geo.LineString.fromFlexiblePolyline(route.sections[0].polyline);
 
+        // Remove previous route line if exists
         if (routeLine) map.removeObject(routeLine);
 
+        // Draw new route polyline
         routeLine = new H.map.Polyline(lineString, {
           style: { strokeColor: 'blue', lineWidth: 4 }
         });
         map.addObject(routeLine);
 
+        // Adjust map view to fit the route
         map.getViewModel().setLookAtData({ bounds: routeLine.getBoundingBox() });
 
+        // Show route summary info
         const summary = route.sections[0].summary;
         document.getElementById('info').innerText =
           `ETA: ${Math.round(summary.duration / 60)} min | Distance: ${Math.round(summary.length / 1000)} km`;
@@ -178,14 +191,17 @@
       }, err => console.error("Route error:", err));
     }
 
+    // Simulate ride by animating marker along the route
     function simulateRide(lineString) {
       const points = [];
       for (let i = 0; i < lineString.getPointCount(); i++) {
         points.push(lineString.extractPoint(i));
       }
 
+      // Remove existing moving marker if any
       if (movingMarker) map.removeObject(movingMarker);
 
+      // Use custom taxi icon for the moving marker
       const carIcon = new H.map.Icon('./taxi_solid_24px.png', {
         size: { w: 36, h: 36 }
       });
@@ -198,7 +214,7 @@
         if (i >= points.length) {
           clearInterval(interval);
 
-          //  Show popup when ride is completed
+          // Show completion bubble when ride ends
           const bubble = new H.ui.InfoBubble(points[points.length - 1], {
             content: "<b>✅ Ride Completed</b>"
           });
@@ -207,11 +223,13 @@
           return;
         }
 
+        // Move marker to next point
         movingMarker.setGeometry(points[i]);
         i++;
       }, 150);
     }
 
+    // Start ride simulation on button click
     document.getElementById('startRide').addEventListener('click', () => {
       if (currentLineString) {
         simulateRide(currentLineString);
